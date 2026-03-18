@@ -81,7 +81,7 @@ def main():
                 SELECT COUNT(*)
                 FROM staging.pet_features
                 WHERE animal_type IS NOT NULL
-                  AND animal_type NOT IN ('Dog', 'Cat', 'Bird', 'Other');
+                  AND animal_type NOT IN ('Dog', 'Cat');
             """,
             "severity": "error",
             "max_bad_rows": 0,

@@ -29,6 +29,8 @@ DEDUP_ENABLED = os.getenv("DEDUP_ENABLED", "false").strip().lower() in {
     "1", "true", "yes", "y"
 }
 
+ALLOWED_ANIMAL_TYPES = {"Dog", "Cat"}
+
 
 def get_engine():
     conn_str = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
@@ -228,6 +230,35 @@ def main():
     ]:
         if col and col in df.columns:
             df[col] = df[col].apply(title_case_safe)
+
+    # Restrict project scope to dogs and cats only
+    if animal_type_col and animal_type_col in df.columns:
+        before_filter = len(df)
+        animal_type_counts_before = (
+            df[animal_type_col]
+            .fillna("NULL")
+            .value_counts(dropna=False)
+            .to_dict()
+        )
+
+        df = df[df[animal_type_col].isin(ALLOWED_ANIMAL_TYPES)].copy()
+
+        after_filter = len(df)
+        animal_type_counts_after = (
+            df[animal_type_col]
+            .fillna("NULL")
+            .value_counts(dropna=False)
+            .to_dict()
+        )
+
+        print(f"Animal scope filter applied: {sorted(ALLOWED_ANIMAL_TYPES)}")
+        print(f"Rows before animal filter: {before_filter:,}")
+        print(f"Rows after animal filter:  {after_filter:,}")
+        print(f"Rows removed by filter:    {before_filter - after_filter:,}")
+        print(f"Animal type counts before filter: {animal_type_counts_before}")
+        print(f"Animal type counts after filter:  {animal_type_counts_after}")
+    else:
+        print("WARNING: No animal_type column found. Dog/Cat filter was not applied.")
 
     # Clean name separately
     if name_col and name_col in df.columns:
