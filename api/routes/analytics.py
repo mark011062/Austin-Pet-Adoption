@@ -48,3 +48,42 @@ def outcomes_by_animal():
         rows = conn.execute(query).mappings().all()
 
     return {"data": [dict(row) for row in rows]}
+
+@router.get("/top-breeds")
+def top_breeds(limit: int = 10):
+    query = text("""
+        SELECT
+            b.breed,
+            COUNT(*) AS adoption_count
+        FROM mart.fact_pet_outcomes f
+        JOIN mart.dim_breed b
+            ON f.breed_key = b.breed_key
+        WHERE f.outcome_type = 'Adoption'
+        GROUP BY b.breed
+        ORDER BY adoption_count DESC
+        LIMIT :limit;
+    """)
+
+    with engine.begin() as conn:
+        rows = conn.execute(query, {"limit": limit}).mappings().all()
+
+    return {"data": [dict(row) for row in rows]}
+
+
+@router.get("/avg-stay-by-animal")
+def avg_stay_by_animal():
+    query = text("""
+        SELECT
+            a.animal_type,
+            ROUND(AVG(f.length_of_stay_days)::numeric, 2) AS avg_stay_days
+        FROM mart.fact_pet_outcomes f
+        JOIN mart.dim_animal a
+            ON f.animal_key = a.animal_key
+        GROUP BY a.animal_type
+        ORDER BY avg_stay_days DESC;
+    """)
+
+    with engine.begin() as conn:
+        rows = conn.execute(query).mappings().all()
+
+    return {"data": [dict(row) for row in rows]}

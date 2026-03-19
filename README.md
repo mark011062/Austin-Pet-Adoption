@@ -1,4 +1,4 @@
-# 🐾 Austin Pet Adoption Data Pipeline
+# Austin Pet Adoption Data Pipeline
 
 This project is an end-to-end data engineering pipeline built on the Austin Animal Center dataset. It ingests raw CSV data, transforms and validates it, and loads it into a dimensional warehouse modeled using a star schema for analytics.
 
@@ -17,6 +17,8 @@ This project demonstrates core data engineering concepts:
 - Analytical data marts
 - DAG-style pipeline orchestration
 - Query performance optimization with indexes
+- API layer for data access
+- Machine learning for adoption prediction
 
 ---
 
@@ -34,6 +36,12 @@ validation checks
 mart.dim_* + mart.fact_pet_outcomes
    ↓
 mart summary tables
+   ↓
+ml.adoption_training_data
+   ↓
+ML models
+   ↓
+FastAPI (analytics + predictions)
 ```
 
 ---
@@ -42,67 +50,11 @@ mart summary tables
 
 ### Fact Table
 - `mart.fact_pet_outcomes`
-  - Central table containing pet outcome events
 
 ### Dimension Tables
 - `mart.dim_animal`
 - `mart.dim_breed`
 - `mart.dim_time`
-
-This structure enables efficient analytical queries and is compatible with BI tools.
-
----
-
-## Entity Relationship Diagram (ERD)
-
-```mermaid
-erDiagram
-
-    dim_animal {
-        bigint animal_key PK
-        text animal_type
-        text sex_upon_intake
-        text age_bucket
-        boolean is_dog
-        boolean is_cat
-    }
-
-    dim_breed {
-        bigint breed_key PK
-        text breed
-    }
-
-    dim_time {
-        bigint time_key PK
-        int outcome_year
-        int outcome_month
-        int outcome_day
-        int outcome_dayofweek
-        boolean outcome_is_weekend
-        date full_date
-    }
-
-    fact_pet_outcomes {
-        bigint source_row_id PK
-        bigint animal_key FK
-        bigint breed_key FK
-        bigint time_key FK
-        timestamp intake_datetime
-        timestamp outcome_datetime
-        text intake_type
-        text intake_condition
-        text outcome_type
-        text outcome_subtype
-        double length_of_stay_days
-        boolean is_adopted
-        boolean is_transferred
-        boolean is_died_or_euthanized
-    }
-
-    dim_animal ||--o{ fact_pet_outcomes : "animal_key"
-    dim_breed  ||--o{ fact_pet_outcomes : "breed_key"
-    dim_time   ||--o{ fact_pet_outcomes : "time_key"
-```
 
 ---
 
@@ -117,104 +69,108 @@ validate_staging
    ↓
 build_star_schema
    ├── build_mart_pet_outcome_summary
-   └── build_mart_breed_adoption_summary
-```
-
-Each step is executed as a task, and dependencies are resolved using a DAG-style execution model.
-
----
-
-## Data Quality Checks
-
-Validation is performed on `staging.pet_features` before loading into the warehouse.
-
-Checks include:
-
-- Required fields (e.g., `animal_type`, `outcome_type`)
-- Valid categorical values
-- Logical consistency (e.g., outcome after intake)
-- Feature correctness (e.g., adoption flags match outcome type)
-
-Checks support:
-- PASS
-- WARN (within threshold)
-- FAIL (pipeline stops)
-
----
-
-## Indexing Strategy
-
-Indexes are added to improve query performance:
-
-- `animal_key`
-- `breed_key`
-- `time_key`
-- `outcome_type`
-
-These support fast joins and filtering in analytical queries.
-
----
-
-## Example Queries
-
-### 1. Adoption trends over time
-
-```sql
-SELECT 
-    t.outcome_year,
-    t.outcome_month,
-    COUNT(*) AS total_adoptions
-FROM mart.fact_pet_outcomes f
-JOIN mart.dim_time t ON f.time_key = t.time_key
-WHERE f.outcome_type = 'Adoption'
-GROUP BY t.outcome_year, t.outcome_month
-ORDER BY t.outcome_year, t.outcome_month;
+   ├── build_mart_breed_adoption_summary
+   └── build_ml_dataset
 ```
 
 ---
 
-### 2. Outcomes by animal type
+## API Layer
 
-```sql
-SELECT 
-    a.animal_type,
-    f.outcome_type,
-    COUNT(*) AS total
-FROM mart.fact_pet_outcomes f
-JOIN mart.dim_animal a ON f.animal_key = a.animal_key
-GROUP BY a.animal_type, f.outcome_type
-ORDER BY total DESC;
+This project includes a FastAPI service that exposes both analytics and machine learning predictions.
+
+### Run the API
+
+```bash
+uvicorn api.main:app --reload
+```
+
+### API Docs
+
+```
+http://127.0.0.1:8000/docs
 ```
 
 ---
 
-### 3. Top breeds by adoption count
+### Analytics Endpoints
 
-```sql
-SELECT 
-    b.breed,
-    COUNT(*) AS adoption_count
-FROM mart.fact_pet_outcomes f
-JOIN mart.dim_breed b ON f.breed_key = b.breed_key
-WHERE f.outcome_type = 'Adoption'
-GROUP BY b.breed
-ORDER BY adoption_count DESC
-LIMIT 10;
+- `GET /analytics/adoptions-by-month`
+- `GET /analytics/outcomes-by-animal`
+- `GET /analytics/top-breeds`
+- `GET /analytics/avg-stay-by-animal`
+
+---
+
+### Prediction Endpoints
+
+- `GET /predictions/health`
+  - Health check for model loading
+
+- `POST /predictions/adoption-within-30-days`
+  - Predicts whether an animal will be adopted within 30 days
+
+---
+
+### Example Prediction Request
+
+```json
+{
+  "animal_type": "Dog",
+  "breed_group": "Labrador",
+  "is_mix": 1,
+  "color": "Black/White",
+  "sex_upon_intake": "Neutered Male",
+  "age_bucket": "young",
+  "age_in_days": 365,
+  "has_name": 1,
+  "name_length": 1,
+  "is_puppy_kitten": 0,
+  "is_senior": 0,
+  "intake_type": "Stray",
+  "intake_condition": "Normal",
+  "intake_year": 2017,
+  "intake_month": 6,
+  "intake_day": 15,
+  "intake_dayofweek": 3,
+  "intake_is_weekend": 0,
+  "is_summer": 1,
+  "is_holiday_season": 0
+}
+```
+
+### Example Prediction Response
+
+```json
+{
+  "prediction_adopted_within_30_days": 1,
+  "probability_adopted_within_30_days": 0.8022
+}
 ```
 
 ---
 
-### 4. Average length of stay by animal type
+## Machine Learning
 
-```sql
-SELECT 
-    a.animal_type,
-    ROUND(AVG(f.length_of_stay_days), 2) AS avg_stay_days
-FROM mart.fact_pet_outcomes f
-JOIN mart.dim_animal a ON f.animal_key = a.animal_key
-GROUP BY a.animal_type
-ORDER BY avg_stay_days DESC;
-```
+### Regression Model
+Predicts number of days until adoption.
+
+- Model: `HistGradientBoostingRegressor`
+- MAE: `19.60`
+- RMSE: `51.76`
+- R²: `0.0857`
+
+---
+
+### Classification Model (Primary)
+
+Predicts whether an animal will be adopted within 30 days.
+
+- Model: `HistGradientBoostingClassifier`
+- Accuracy: `0.8176`
+- Precision: `0.8208`
+- Recall: `0.9524`
+- F1 Score: `0.8817`
 
 ---
 
@@ -224,16 +180,9 @@ ORDER BY avg_stay_days DESC;
 Austin-Pet-Adoption/
 │
 ├── data/
-│   └── raw/
-│
 ├── src/
-│   ├── ingest_data.py
-│   ├── prepare_features.py
-│   ├── validate_staging.py
-│   ├── build_star_schema.py
-│   ├── build_mart_pet_outcome_summary.py
-│   ├── build_mart_breed_adoption_summary.py
-│
+├── api/
+├── models/
 ├── run_pipeline.py
 ├── README.md
 ```
@@ -242,41 +191,46 @@ Austin-Pet-Adoption/
 
 ## How to Run
 
-### 1. Start Postgres (Docker)
-
+### Start Postgres
 ```
 docker start austin_pet_postgres
 ```
 
-### 2. Run the pipeline
-
+### Run pipeline
 ```
 python run_pipeline.py
+```
+
+### Run API
+```
+uvicorn api.main:app --reload
 ```
 
 ---
 
 ## What This Project Demonstrates
 
-- End-to-end pipeline design
-- Dimensional modeling for analytics
-- Data validation and quality enforcement
-- Orchestration with dependency management
-- Production-style thinking in data workflows
+- End-to-end data engineering pipeline
+- Star schema modeling
+- Data validation
+- DAG orchestration
+- API development with FastAPI
+- Machine learning integration
+- Model serving via API
 
 ---
 
 ## Future Improvements
 
-- Add Airflow or Prefect orchestration
-- Add dbt for transformations
-- Add API layer for data access
-- Add dashboards (Tableau / Power BI)
-- Add automated tests and CI/CD
+- Airflow / Prefect orchestration
+- dbt transformations
+- dashboards (Tableau / Power BI)
+- CI/CD pipeline
+- real-time predictions
 
 ---
 
 ## Author
 
 Mark Young  
-Data Analyst → Data Engineer  
+Data Analyst → Data Engineer

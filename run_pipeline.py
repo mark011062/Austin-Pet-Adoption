@@ -44,6 +44,11 @@ TASKS = {
         script_path=PROJECT_ROOT / "src" / "build_mart_breed_adoption_summary.py",
         depends_on=["build_star_schema"],
     ),
+    "build_ml_dataset": Task(
+        name="Build ml.adoption_training_data",
+        script_path=PROJECT_ROOT / "src" / "build_ml_dataset.py",
+        depends_on=["build_star_schema"],
+    ),
 }
 
 
