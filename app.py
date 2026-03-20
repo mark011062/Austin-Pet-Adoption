@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, text
 
 load_dotenv()
 
-API_URL = "http://127.0.0.1:8000/predictions/adoption-within-30-days"
+API_URL = "http://127.0.0.1:8000/predictions/adoption-within-days"
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "55432")
@@ -121,7 +121,7 @@ def bucket_age(age_in_days: int) -> str:
 st.set_page_config(page_title="Pet Adoption Predictor", layout="centered")
 
 st.title("🐾 Pet Adoption Predictor V3")
-st.write("Enter intake details to predict whether a dog or cat will be adopted within 30 days.")
+st.write("Enter intake details to predict the likelihood that a dog or cat will be adopted within a selected number of days.")
 
 breed_df, color_df, intake_type_df, intake_condition_df = load_dropdown_data()
 
@@ -185,6 +185,12 @@ intake_condition = st.selectbox("Condition at Intake", intake_condition_options,
 
 intake_date = st.date_input("Intake Date", datetime(2017, 6, 15))
 
+days_window = st.selectbox(
+    "Prediction Window (Days)",
+    [7, 14, 30, 60],
+    index=2
+)
+
 is_mix = 1 if "mix" in breed_group.lower() else 0
 
 intake_year = intake_date.year
@@ -217,6 +223,7 @@ if st.button("Predict Adoption"):
         "intake_is_weekend": intake_is_weekend,
         "is_summer": is_summer,
         "is_holiday_season": is_holiday_season,
+        "days_window": days_window,
     }
 
     try:
@@ -224,20 +231,24 @@ if st.button("Predict Adoption"):
         response.raise_for_status()
         result = response.json()
 
-        pred = result["prediction_adopted_within_30_days"]
-        prob = result["probability_adopted_within_30_days"]
+        pred = result["prediction_adopted_within_window"]
+        prob = result["probability_adopted_within_window"]
+        returned_window = result["days_window"]
 
         st.subheader("Prediction Result")
 
         if pred == 1:
-            st.success("✅ Likely to be adopted within 30 days")
+            st.success(f"Likely to be adopted within {returned_window} days")
         else:
-            st.warning("⚠️ Less likely to be adopted within 30 days")
+            st.warning(f"Less likely to be adopted within {returned_window} days")
 
-        st.metric("Confidence", f"{prob:.2%}")
+        st.metric(f"Confidence for {returned_window}-day window", f"{prob:.2%}")
 
         with st.expander("Show model inputs used"):
             st.json(payload)
+
+        with st.expander("Show API response"):
+            st.json(result)
 
     except Exception as e:
         st.error(f"Error calling prediction API: {e}")

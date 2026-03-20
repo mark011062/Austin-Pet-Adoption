@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Literal
 
 
 class AdoptionPredictionRequest(BaseModel):
@@ -22,3 +23,5 @@ class AdoptionPredictionRequest(BaseModel):
     intake_is_weekend: int
     is_summer: int
     is_holiday_season: int
+
+    days_window: Literal[7, 14, 30, 60]

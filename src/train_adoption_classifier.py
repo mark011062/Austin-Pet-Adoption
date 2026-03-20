@@ -42,26 +42,37 @@ def main():
     engine = get_engine()
     source_fq = f"{SOURCE_SCHEMA}.{SOURCE_TABLE}"
 
+    adoption_windows = [7, 14, 30, 60]
+
     print(f"Reading training data from {source_fq} ...")
     df = pd.read_sql(f"SELECT * FROM {source_fq};", engine)
 
     print(f"Loaded {len(df):,} rows")
 
-    target_col = "target_adopted_within_30_days"
+    print("\nChecking available target columns...")
 
-    df = df[df[target_col].notna()].copy()
+    for window in adoption_windows:
+        col = f"target_adopted_within_{window}_days"
+        if col in df.columns:
+            print(f"FOUND: {col}")
+        else:
+            print(f"MISSING: {col}")
 
-    y = df[target_col]
+    
+    #loop over these
+    adoption_windows = [7, 14, 30, 60]
+
+    
 
     drop_cols = [
         "source_row_id",
         "age_upon_intake",
         "breed",
         "target_days_to_adoption",
-        target_col,
     ]
 
     X = df.drop(columns=drop_cols, errors="ignore")
+    results = []
 
     categorical_features = [
         "animal_type",
@@ -118,31 +129,38 @@ def main():
         ("model", model),
     ])
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=0.2,
-        random_state=42,
-        stratify=y,
-    )
+    for window in adoption_windows:
+        target_col = f"target_adopted_within_{window}_days"
+        y = df[target_col]
+        print(f"\nTraining model for {window} days...")
+    
 
-    print(f"Training rows: {len(X_train):,}")
-    print(f"Test rows:     {len(X_test):,}")
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            test_size=0.2,
+            random_state=42,
+            stratify=y,
+        )
 
-    pipeline.fit(X_train, y_train)
+        print(f"Training rows: {len(X_train):,}")
+        print(f"Test rows:     {len(X_test):,}")
 
-    preds = pipeline.predict(X_test)
+        pipeline.fit(X_train, y_train)
 
-    print("\nModel Evaluation")
-    print(f"Accuracy:  {accuracy_score(y_test, preds):.4f}")
-    print(f"Precision: {precision_score(y_test, preds):.4f}")
-    print(f"Recall:    {recall_score(y_test, preds):.4f}")
-    print(f"F1 Score:  {f1_score(y_test, preds):.4f}")
+        preds = pipeline.predict(X_test)
 
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    joblib.dump(pipeline, MODEL_PATH)
+        print("\nModel Evaluation")
+        print(f"Accuracy:  {accuracy_score(y_test, preds):.4f}")
+        print(f"Precision: {precision_score(y_test, preds):.4f}")
+        print(f"Recall:    {recall_score(y_test, preds):.4f}")
+        print(f"F1 Score:  {f1_score(y_test, preds):.4f}")
 
-    print(f"\nSaved model to: {MODEL_PATH}")
+        MODEL_DIR.mkdir(parents=True, exist_ok=True)
+        model_path = MODEL_DIR / f"adoption_{window}day_classifier.joblib"
+        joblib.dump(pipeline, model_path)
+
+        print(f"\nSaved model to: {model_path}")
 
 
 if __name__ == "__main__":

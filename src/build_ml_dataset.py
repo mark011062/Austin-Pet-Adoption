@@ -18,6 +18,7 @@ SOURCE_TABLE = "pet_features"
 TARGET_SCHEMA = "ml"
 TARGET_TABLE = "adoption_training_data"
 
+ADOPTION_WINDOWS = [7, 14, 30, 60]
 
 def get_engine():
     conn_str = (
@@ -120,9 +121,10 @@ def main():
     df["is_summer"] = df["intake_month"].isin([6, 7, 8]).astype(int)
     df["is_holiday_season"] = df["intake_month"].isin([11, 12]).astype(int)
 
-    df["target_adopted_within_30_days"] = (
-        df["target_days_to_adoption"] <= 30
-    ).astype(int)
+    for window in ADOPTION_WINDOWS:
+        df[f"target_adopted_within_{window}_days"] = (
+            df["target_days_to_adoption"] <= window
+        ).astype(int)
 
     ordered_cols = [
         "source_row_id",
@@ -149,8 +151,12 @@ def main():
         "is_summer",
         "is_holiday_season",
         "target_days_to_adoption",
-        "target_adopted_within_30_days",
     ]
+
+    # Add all target columns dynamically
+    for window in ADOPTION_WINDOWS:
+        ordered_cols.append(f"target_adopted_within_{window}_days")
+
     df = df[[c for c in ordered_cols if c in df.columns]]
 
     with engine.begin() as conn:
