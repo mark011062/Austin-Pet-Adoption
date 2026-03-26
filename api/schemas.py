@@ -1,17 +1,15 @@
 from pydantic import BaseModel
-from typing import Literal
 
 
 class AdoptionPredictionRequest(BaseModel):
     animal_type: str
     breed_group: str
     is_mix: int
-    color: str
+    color_primary: str
     sex_upon_intake: str
     age_bucket: str
-    age_in_days: float
+    age_in_days: int
     has_name: int
-    name_length: int
     is_puppy_kitten: int
     is_senior: int
     intake_type: str
@@ -23,5 +21,4 @@ class AdoptionPredictionRequest(BaseModel):
     intake_is_weekend: int
     is_summer: int
     is_holiday_season: int
-
-    days_window: Literal[7, 14, 30, 60]
+    days_window: int

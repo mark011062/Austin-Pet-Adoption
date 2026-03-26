@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime
 
 import pandas as pd
@@ -31,21 +32,21 @@ def load_dropdown_data():
     engine = get_engine()
 
     breed_query = text("""
-        SELECT DISTINCT animal_type, breed_group
+        SELECT DISTINCT animal_type, breed_clean
         FROM ml.adoption_training_data
         WHERE animal_type IN ('Dog', 'Cat')
-          AND breed_group IS NOT NULL
-          AND TRIM(breed_group) <> ''
-        ORDER BY animal_type, breed_group;
+          AND breed_clean IS NOT NULL
+          AND TRIM(breed_clean) <> ''
+        ORDER BY animal_type, breed_clean;
     """)
 
     color_query = text("""
-        SELECT DISTINCT animal_type, color
+        SELECT DISTINCT animal_type, color_primary
         FROM ml.adoption_training_data
         WHERE animal_type IN ('Dog', 'Cat')
-          AND color IS NOT NULL
-          AND TRIM(color) <> ''
-        ORDER BY animal_type, color;
+          AND color_primary IS NOT NULL
+          AND TRIM(color_primary) <> ''
+        ORDER BY animal_type, color_primary;
     """)
 
     intake_type_query = text("""
@@ -118,17 +119,202 @@ def bucket_age(age_in_days: int) -> str:
     return "senior"
 
 
+def simplify_breed_for_display(breed_clean: str) -> str:
+    """
+    Turn model-oriented breed text into a cleaner UI label.
+    Examples:
+    - 'Afghan Hound / Labrador Retriever' -> 'Afghan Hound Mix'
+    - 'Miniature Schnauzer / Miniature Poodle' -> 'Miniature Schnauzer Mix'
+    - 'Domestic Shorthair' -> 'Domestic Shorthair'
+    - 'Chihuahua Mix' -> 'Chihuahua Mix'
+    """
+    if not breed_clean:
+        return "Unknown"
+
+    breed = str(breed_clean).strip()
+    if not breed:
+        return "Unknown"
+
+    breed_lower = breed.lower()
+
+    if breed_lower == "unknown":
+        return "Unknown"
+
+    if "/" in breed:
+        first_part = breed.split("/")[0].strip()
+        if "mix" not in first_part.lower():
+            return f"{first_part} Mix"
+        return first_part
+
+    if re.search(r"\bmix\b", breed_lower):
+        return breed
+
+    return breed
+
+
+def build_friendly_breed_options(breed_df: pd.DataFrame, animal_type: str) -> list[str]:
+    raw_breeds = get_animal_options(breed_df, animal_type, "breed_clean")
+    friendly = sorted({simplify_breed_for_display(b) for b in raw_breeds if b})
+    return friendly
+
+
+def map_breed_to_group(selected_breed: str, animal_type: str) -> str:
+    breed = selected_breed.lower().strip()
+
+    if animal_type.lower() == "cat":
+        return "Cat"
+
+    if "pit bull" in breed or "staffordshire" in breed or "bulldog" in breed or "boxer" in breed:
+        return "Pit Bull / Bully"
+
+    if "labrador" in breed or "retriever" in breed:
+        return "Labrador / Retriever"
+
+    if "german shepherd" in breed:
+        return "German Shepherd"
+
+    if (
+        "chihuahua" in breed
+        or "pomeranian" in breed
+        or "miniature poodle" in breed
+        or "miniature schnauzer" in breed
+        or "lhasa apso" in breed
+        or "maltese" in breed
+        or "shih tzu" in breed
+        or "yorkshire" in breed
+        or "papillon" in breed
+        or "pekingese" in breed
+        or "pug" in breed
+        or "dachshund" in breed
+        or "min pin" in breed
+        or "miniature pinscher" in breed
+    ):
+        return "Small Breed"
+
+    if (
+        "beagle" in breed
+        or "hound" in breed
+        or "coonhound" in breed
+        or "plott" in breed
+        or "whippet" in breed
+        or "greyhound" in breed
+        or "rhodesian ridgeback" in breed
+        or "pharaoh hound" in breed
+        or "harrier" in breed
+        or "black mouth cur" in breed
+    ):
+        return "Hound"
+
+    if (
+        "collie" in breed
+        or "australian shepherd" in breed
+        or "australian cattle dog" in breed
+        or "australian kelpie" in breed
+        or "corgi" in breed
+        or "heeler" in breed
+        or "belgian malinois" in breed
+        or "shetland sheepdog" in breed
+    ):
+        return "Herding Breed"
+
+    if (
+        "rottweiler" in breed
+        or "doberman" in breed
+        or "mastiff" in breed
+        or "great dane" in breed
+        or "great pyrenees" in breed
+        or "saint bernard" in breed
+        or "bernese mountain dog" in breed
+        or "newfoundland" in breed
+        or "akita" in breed
+        or "husky" in breed
+        or "alaskan malamute" in breed
+        or "cane corso" in breed
+        or "chow chow" in breed
+    ):
+        return "Working Breed"
+
+    if (
+        "jack russell" in breed
+        or "rat terrier" in breed
+        or "fox terrier" in breed
+        or "airedale" in breed
+        or "west highland" in breed
+        or "scottish terrier" in breed
+        or "cairn terrier" in breed
+        or "terrier" in breed
+    ):
+        return "Terrier (non-bully)"
+
+    if (
+        "toy poodle" in breed
+        or "poodle toy" in breed
+    ):
+        return "Toy Breed"
+
+    if (
+        "pointer" in breed
+        or "spaniel" in breed
+        or "setter" in breed
+        or "vizsla" in breed
+        or "weimaraner" in breed
+    ):
+        return "Sporting Breed"
+
+    if (
+        "catahoula" in breed
+        or "carolina dog" in breed
+        or "blue lacy" in breed
+        or "shiba inu" in breed
+    ):
+        return "Other Regional / Primitive"
+
+    if "mix" in breed:
+        return "Mixed Breed (General)"
+
+    return "Other"
+
+
+def default_breed_index(breed_options: list[str], animal_type: str) -> int:
+    if not breed_options:
+        return 0
+
+    if animal_type == "Dog":
+        preferred = [
+            "Labrador Retriever",
+            "German Shepherd",
+            "Chihuahua",
+            "Pomeranian",
+            "Pit Bull Mix",
+        ]
+    else:
+        preferred = [
+            "Domestic Shorthair",
+            "Domestic Longhair",
+            "Siamese",
+        ]
+
+    for option in preferred:
+        if option in breed_options:
+            return breed_options.index(option)
+
+    return 0
+
+
 st.set_page_config(page_title="Pet Adoption Predictor", layout="centered")
 
-st.title("🐾 Pet Adoption Predictor V3")
-st.write("Enter intake details to predict the likelihood that a dog or cat will be adopted within a selected number of days.")
+st.title("🐾 Pet Adoption Predictor")
+st.write(
+    "Enter intake details to predict the likelihood that a dog or cat "
+    "will be adopted within a selected number of days."
+)
 
 breed_df, color_df, intake_type_df, intake_condition_df = load_dropdown_data()
 
 animal_type = st.selectbox("Animal Type", ["Dog", "Cat"])
 
-breed_options = get_animal_options(breed_df, animal_type, "breed_group")
-color_options = get_animal_options(color_df, animal_type, "color")
+breed_options = build_friendly_breed_options(breed_df, animal_type)
+color_options = get_animal_options(color_df, animal_type, "color_primary")
 intake_type_options = get_single_column_options(intake_type_df, "intake_type")
 intake_condition_options = get_single_column_options(intake_condition_df, "intake_condition")
 
@@ -144,19 +330,17 @@ if not intake_type_options:
 if not intake_condition_options:
     intake_condition_options = ["Unknown"]
 
-if animal_type == "Dog" and "Labrador" in breed_options:
-    breed_index = breed_options.index("Labrador")
-elif animal_type == "Cat" and "Domestic" in breed_options:
-    breed_index = breed_options.index("Domestic")
-else:
-    breed_index = 0
+selected_breed = st.selectbox(
+    "Breed",
+    breed_options,
+    index=default_breed_index(breed_options, animal_type),
+)
 
-breed_group = st.selectbox("Breed Group", breed_options, index=breed_index)
-color = st.selectbox("Color", color_options, index=0)
+color_primary = st.selectbox("Color", color_options, index=0)
 
 sex_upon_intake = st.selectbox(
     "Sex Upon Intake",
-    ["Neutered Male", "Spayed Female", "Intact Male", "Intact Female"]
+    ["Neutered Male", "Spayed Female", "Intact Male", "Intact Female"],
 )
 
 st.subheader("Age")
@@ -178,7 +362,6 @@ st.caption(f"Calculated age: {age_in_days} days | Age bucket: {age_bucket}")
 
 has_name_label = st.selectbox("Does the animal have a name?", ["Yes", "No"])
 has_name = 1 if has_name_label == "Yes" else 0
-name_length = has_name
 
 intake_type = st.selectbox("Intake Type", intake_type_options, index=0)
 intake_condition = st.selectbox("Condition at Intake", intake_condition_options, index=0)
@@ -188,10 +371,11 @@ intake_date = st.date_input("Intake Date", datetime(2017, 6, 15))
 days_window = st.selectbox(
     "Prediction Window (Days)",
     [7, 14, 30, 60],
-    index=2
+    index=2,
 )
 
-is_mix = 1 if "mix" in breed_group.lower() else 0
+is_mix = 1 if "mix" in selected_breed.lower() else 0
+breed_group = map_breed_to_group(selected_breed, animal_type)
 
 intake_year = intake_date.year
 intake_month = intake_date.month
@@ -206,12 +390,11 @@ if st.button("Predict Adoption"):
         "animal_type": animal_type,
         "breed_group": breed_group,
         "is_mix": is_mix,
-        "color": color,
+        "color_primary": color_primary,
         "sex_upon_intake": sex_upon_intake,
         "age_bucket": age_bucket,
         "age_in_days": age_in_days,
         "has_name": has_name,
-        "name_length": name_length,
         "is_puppy_kitten": is_puppy_kitten,
         "is_senior": is_senior,
         "intake_type": intake_type,
@@ -242,13 +425,28 @@ if st.button("Predict Adoption"):
         else:
             st.warning(f"Less likely to be adopted within {returned_window} days")
 
-        st.metric(f"Confidence for {returned_window}-day window", f"{prob:.2%}")
+        st.metric(
+            f"Confidence for {returned_window}-day window",
+            f"{prob:.2%}",
+        )
 
         with st.expander("Show model inputs used"):
-            st.json(payload)
+            st.json(
+                {
+                    "selected_breed": selected_breed,
+                    "derived_breed_group": breed_group,
+                    **payload,
+                }
+            )
 
         with st.expander("Show API response"):
             st.json(result)
+
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None:
+            st.error(f"Error calling prediction API: {e.response.text}")
+        else:
+            st.error(f"Error calling prediction API: {e}")
 
     except Exception as e:
         st.error(f"Error calling prediction API: {e}")
