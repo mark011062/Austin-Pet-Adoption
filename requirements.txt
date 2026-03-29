@@ -12,3 +12,5 @@ uvicorn
 
 streamlit
 requests
+
+altair<5
