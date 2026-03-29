@@ -29,48 +29,114 @@ def get_engine():
 
 @st.cache_data
 def load_dropdown_data():
-    engine = get_engine()
+    try:
+        engine = get_engine()
 
-    breed_query = text("""
-        SELECT DISTINCT animal_type, breed_clean
-        FROM ml.adoption_training_data
-        WHERE animal_type IN ('Dog', 'Cat')
-          AND breed_clean IS NOT NULL
-          AND TRIM(breed_clean) <> ''
-        ORDER BY animal_type, breed_clean;
-    """)
+        breed_query = text("""
+            SELECT DISTINCT animal_type, breed_clean
+            FROM ml.adoption_training_data
+            WHERE animal_type IN ('Dog', 'Cat')
+              AND breed_clean IS NOT NULL
+              AND TRIM(breed_clean) <> ''
+            ORDER BY animal_type, breed_clean;
+        """)
 
-    color_query = text("""
-        SELECT DISTINCT animal_type, color_primary
-        FROM ml.adoption_training_data
-        WHERE animal_type IN ('Dog', 'Cat')
-          AND color_primary IS NOT NULL
-          AND TRIM(color_primary) <> ''
-        ORDER BY animal_type, color_primary;
-    """)
+        color_query = text("""
+            SELECT DISTINCT animal_type, color_primary
+            FROM ml.adoption_training_data
+            WHERE animal_type IN ('Dog', 'Cat')
+              AND color_primary IS NOT NULL
+              AND TRIM(color_primary) <> ''
+            ORDER BY animal_type, color_primary;
+        """)
 
-    intake_type_query = text("""
-        SELECT DISTINCT intake_type
-        FROM ml.adoption_training_data
-        WHERE intake_type IS NOT NULL
-          AND TRIM(intake_type) <> ''
-        ORDER BY intake_type;
-    """)
+        intake_type_query = text("""
+            SELECT DISTINCT intake_type
+            FROM ml.adoption_training_data
+            WHERE intake_type IS NOT NULL
+              AND TRIM(intake_type) <> ''
+            ORDER BY intake_type;
+        """)
 
-    intake_condition_query = text("""
-        SELECT DISTINCT intake_condition
-        FROM ml.adoption_training_data
-        WHERE intake_condition IS NOT NULL
-          AND TRIM(intake_condition) <> ''
-        ORDER BY intake_condition;
-    """)
+        intake_condition_query = text("""
+            SELECT DISTINCT intake_condition
+            FROM ml.adoption_training_data
+            WHERE intake_condition IS NOT NULL
+              AND TRIM(intake_condition) <> ''
+            ORDER BY intake_condition;
+        """)
 
-    breed_df = pd.read_sql(breed_query, engine)
-    color_df = pd.read_sql(color_query, engine)
-    intake_type_df = pd.read_sql(intake_type_query, engine)
-    intake_condition_df = pd.read_sql(intake_condition_query, engine)
+        breed_df = pd.read_sql(breed_query, engine)
+        color_df = pd.read_sql(color_query, engine)
+        intake_type_df = pd.read_sql(intake_type_query, engine)
+        intake_condition_df = pd.read_sql(intake_condition_query, engine)
 
-    return breed_df, color_df, intake_type_df, intake_condition_df
+        return breed_df, color_df, intake_type_df, intake_condition_df
+
+    except Exception:
+        breed_df = pd.DataFrame(
+            {
+                "animal_type": [
+                    "Dog", "Dog", "Dog", "Dog", "Dog",
+                    "Cat", "Cat", "Cat", "Cat"
+                ],
+                "breed_clean": [
+                    "Labrador Retriever",
+                    "German Shepherd",
+                    "Pit Bull Mix",
+                    "Chihuahua Mix",
+                    "Domestic Shorthair",
+                    "Domestic Shorthair",
+                    "Domestic Longhair",
+                    "Siamese",
+                    "Cat Mix",
+                ],
+            }
+        )
+
+        color_df = pd.DataFrame(
+            {
+                "animal_type": [
+                    "Dog", "Dog", "Dog", "Dog",
+                    "Cat", "Cat", "Cat", "Cat"
+                ],
+                "color_primary": [
+                    "Black",
+                    "Brown",
+                    "White",
+                    "Tan",
+                    "Black",
+                    "Gray",
+                    "White",
+                    "Orange",
+                ],
+            }
+        )
+
+        intake_type_df = pd.DataFrame(
+            {
+                "intake_type": [
+                    "Stray",
+                    "Owner Surrender",
+                    "Public Assist",
+                    "Wildlife",
+                ]
+            }
+        )
+
+        intake_condition_df = pd.DataFrame(
+            {
+                "intake_condition": [
+                    "Normal",
+                    "Injured",
+                    "Sick",
+                    "Aged",
+                    "Nursing",
+                ]
+            }
+        )
+
+        return breed_df, color_df, intake_type_df, intake_condition_df
 
 
 def get_animal_options(df: pd.DataFrame, animal_type: str, value_col: str) -> list[str]:
