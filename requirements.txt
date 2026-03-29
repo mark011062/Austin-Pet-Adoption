@@ -10,7 +10,7 @@ joblib
 fastapi
 uvicorn
 
-streamlit
+streamlit>=1.32
 requests
 
 altair<5
