@@ -1,8 +1,35 @@
-from fastapi import APIRouter
+import re
+
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 from api.db import engine
 
 router = APIRouter()
+
+
+def simplify_breed_for_display(breed_clean: str) -> str:
+    if not breed_clean:
+        return "Unknown"
+
+    breed = str(breed_clean).strip()
+    if not breed:
+        return "Unknown"
+
+    breed_lower = breed.lower()
+
+    if breed_lower == "unknown":
+        return "Unknown"
+
+    if "/" in breed:
+        first_part = breed.split("/")[0].strip()
+        if "mix" not in first_part.lower():
+            return f"{first_part} Mix"
+        return first_part
+
+    if re.search(r"\bmix\b", breed_lower):
+        return breed
+
+    return breed
 
 
 @router.get("/health")
@@ -134,113 +161,49 @@ def get_dropdowns():
             intake_type_rows = conn.execute(intake_type_query).mappings().all()
             intake_condition_rows = conn.execute(intake_condition_query).mappings().all()
 
-        breeds = {"Dog": [], "Cat": []}
+        breeds = {"Dog": set(), "Cat": set()}
         for row in breed_rows:
             animal_type = row["animal_type"]
-            breed_clean = row["breed_clean"]
-            if animal_type in breeds and breed_clean:
-                breeds[animal_type].append(breed_clean)
+            raw_breed = row["breed_clean"]
 
-        colors = {"Dog": [], "Cat": []}
+            if animal_type in breeds and raw_breed:
+                cleaned_breed = simplify_breed_for_display(raw_breed)
+                if cleaned_breed and cleaned_breed != "Unknown":
+                    breeds[animal_type].add(cleaned_breed)
+
+        colors = {"Dog": set(), "Cat": set()}
         for row in color_rows:
             animal_type = row["animal_type"]
             color_primary = row["color_primary"]
-            if animal_type in colors and color_primary:
-                colors[animal_type].append(color_primary)
 
-        intake_types = [
-            row["intake_type"]
+            if animal_type in colors and color_primary:
+                colors[animal_type].add(str(color_primary).strip())
+
+        intake_types = sorted({
+            str(row["intake_type"]).strip()
             for row in intake_type_rows
             if row["intake_type"]
-        ]
+        })
 
-        intake_conditions = [
-            row["intake_condition"]
+        intake_conditions = sorted({
+            str(row["intake_condition"]).strip()
             for row in intake_condition_rows
             if row["intake_condition"]
-        ]
+        })
 
         return {
             "animal_types": ["Dog", "Cat"],
-            "breeds": breeds,
-            "colors": colors,
+            "breeds": {
+                "Dog": sorted(breeds["Dog"]),
+                "Cat": sorted(breeds["Cat"]),
+            },
+            "colors": {
+                "Dog": sorted(colors["Dog"]),
+                "Cat": sorted(colors["Cat"]),
+            },
             "intake_types": intake_types,
             "intake_conditions": intake_conditions,
         }
 
-    except Exception:
-        return {
-            "animal_types": ["Dog", "Cat"],
-            "breeds": {
-                "Dog": [
-                    "Labrador Retriever",
-                    "German Shepherd",
-                    "Pit Bull Mix",
-                    "Chihuahua Mix",
-                    "Boxer Mix",
-                    "Australian Cattle Dog Mix",
-                    "Beagle Mix",
-                    "Dachshund Mix",
-                    "Siberian Husky Mix",
-                    "Yorkshire Terrier Mix",
-                    "Miniature Poodle Mix",
-                    "Rottweiler Mix",
-                    "Border Collie Mix",
-                    "Catahoula Mix",
-                    "American Bulldog Mix",
-                ],
-                "Cat": [
-                    "Domestic Shorthair",
-                    "Domestic Medium Hair",
-                    "Domestic Longhair",
-                    "Siamese Mix",
-                    "Tabby Mix",
-                    "American Shorthair Mix",
-                    "Maine Coon Mix",
-                    "Cat Mix",
-                ],
-            },
-            "colors": {
-                "Dog": [
-                    "Black",
-                    "Brown",
-                    "White",
-                    "Tan",
-                    "Gray",
-                    "Blue",
-                    "Cream",
-                    "Tricolor",
-                    "Black/White",
-                    "Brown/White",
-                ],
-                "Cat": [
-                    "Black",
-                    "Gray",
-                    "White",
-                    "Orange",
-                    "Brown",
-                    "Cream",
-                    "Calico",
-                    "Tortoiseshell",
-                    "Black/White",
-                    "Orange/White",
-                ],
-            },
-            "intake_types": [
-                "Stray",
-                "Owner Surrender",
-                "Public Assist",
-                "Wildlife",
-                "Euthanasia Request",
-                "Abandoned",
-            ],
-            "intake_conditions": [
-                "Normal",
-                "Injured",
-                "Sick",
-                "Aged",
-                "Nursing",
-                "Neonatal",
-                "Other",
-            ],
-        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dropdown query failed: {str(e)}")
