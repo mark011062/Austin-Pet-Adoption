@@ -1,166 +1,63 @@
-import os
 import re
 from datetime import datetime
 
-import pandas as pd
 import requests
 import streamlit as st
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
 
-load_dotenv()
-
-API_URL = "https://austin-pet-adoption.onrender.com/predictions/adoption-within-days"
-
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "55432")
-DB_NAME = os.getenv("DB_NAME", "pet_adoption_db")
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
+API_BASE = "https://austin-pet-adoption.onrender.com"
+PREDICTION_API_URL = f"{API_BASE}/predictions/adoption-within-days"
+DROPDOWN_API_URL = f"{API_BASE}/analytics/dropdowns"
 
 
-def get_engine():
-    conn_str = (
-        f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}"
-        f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    )
-    return create_engine(conn_str)
-
-
-@st.cache_data
+@st.cache_data(ttl=3600)
 def load_dropdown_data():
     try:
-        engine = get_engine()
+        response = requests.get(DROPDOWN_API_URL, timeout=30)
+        response.raise_for_status()
+        data = response.json()
 
-        breed_query = text("""
-            SELECT DISTINCT animal_type, breed_clean
-            FROM ml.adoption_training_data
-            WHERE animal_type IN ('Dog', 'Cat')
-              AND breed_clean IS NOT NULL
-              AND TRIM(breed_clean) <> ''
-            ORDER BY animal_type, breed_clean;
-        """)
-
-        color_query = text("""
-            SELECT DISTINCT animal_type, color_primary
-            FROM ml.adoption_training_data
-            WHERE animal_type IN ('Dog', 'Cat')
-              AND color_primary IS NOT NULL
-              AND TRIM(color_primary) <> ''
-            ORDER BY animal_type, color_primary;
-        """)
-
-        intake_type_query = text("""
-            SELECT DISTINCT intake_type
-            FROM ml.adoption_training_data
-            WHERE intake_type IS NOT NULL
-              AND TRIM(intake_type) <> ''
-            ORDER BY intake_type;
-        """)
-
-        intake_condition_query = text("""
-            SELECT DISTINCT intake_condition
-            FROM ml.adoption_training_data
-            WHERE intake_condition IS NOT NULL
-              AND TRIM(intake_condition) <> ''
-            ORDER BY intake_condition;
-        """)
-
-        breed_df = pd.read_sql(breed_query, engine)
-        color_df = pd.read_sql(color_query, engine)
-        intake_type_df = pd.read_sql(intake_type_query, engine)
-        intake_condition_df = pd.read_sql(intake_condition_query, engine)
-
-        return breed_df, color_df, intake_type_df, intake_condition_df
-
+        return {
+            "animal_types": data.get("animal_types", ["Dog", "Cat"]),
+            "breeds": data.get("breeds", {}),
+            "colors": data.get("colors", {}),
+            "intake_types": data.get("intake_types", []),
+            "intake_conditions": data.get("intake_conditions", []),
+        }
     except Exception:
-        breed_df = pd.DataFrame(
-            {
-                "animal_type": [
-                    "Dog", "Dog", "Dog", "Dog", "Dog",
-                    "Cat", "Cat", "Cat", "Cat"
-                ],
-                "breed_clean": [
+        return {
+            "animal_types": ["Dog", "Cat"],
+            "breeds": {
+                "Dog": [
                     "Labrador Retriever",
                     "German Shepherd",
                     "Pit Bull Mix",
                     "Chihuahua Mix",
-                    "Domestic Shorthair",
+                ],
+                "Cat": [
                     "Domestic Shorthair",
                     "Domestic Longhair",
                     "Siamese",
                     "Cat Mix",
                 ],
-            }
-        )
-
-        color_df = pd.DataFrame(
-            {
-                "animal_type": [
-                    "Dog", "Dog", "Dog", "Dog",
-                    "Cat", "Cat", "Cat", "Cat"
-                ],
-                "color_primary": [
-                    "Black",
-                    "Brown",
-                    "White",
-                    "Tan",
-                    "Black",
-                    "Gray",
-                    "White",
-                    "Orange",
-                ],
-            }
-        )
-
-        intake_type_df = pd.DataFrame(
-            {
-                "intake_type": [
-                    "Stray",
-                    "Owner Surrender",
-                    "Public Assist",
-                    "Wildlife",
-                ]
-            }
-        )
-
-        intake_condition_df = pd.DataFrame(
-            {
-                "intake_condition": [
-                    "Normal",
-                    "Injured",
-                    "Sick",
-                    "Aged",
-                    "Nursing",
-                ]
-            }
-        )
-
-        return breed_df, color_df, intake_type_df, intake_condition_df
-
-
-def get_animal_options(df: pd.DataFrame, animal_type: str, value_col: str) -> list[str]:
-    options = (
-        df.loc[df["animal_type"] == animal_type, value_col]
-        .dropna()
-        .astype(str)
-        .sort_values()
-        .unique()
-        .tolist()
-    )
-    return options
-
-
-def get_single_column_options(df: pd.DataFrame, value_col: str) -> list[str]:
-    options = (
-        df[value_col]
-        .dropna()
-        .astype(str)
-        .sort_values()
-        .unique()
-        .tolist()
-    )
-    return options
+            },
+            "colors": {
+                "Dog": ["Black", "Brown", "White", "Tan"],
+                "Cat": ["Black", "Gray", "White", "Orange"],
+            },
+            "intake_types": [
+                "Stray",
+                "Owner Surrender",
+                "Public Assist",
+                "Wildlife",
+            ],
+            "intake_conditions": [
+                "Normal",
+                "Injured",
+                "Sick",
+                "Aged",
+                "Nursing",
+            ],
+        }
 
 
 def convert_age_to_days(age_value: int, age_unit: str) -> int:
@@ -186,14 +83,6 @@ def bucket_age(age_in_days: int) -> str:
 
 
 def simplify_breed_for_display(breed_clean: str) -> str:
-    """
-    Turn model-oriented breed text into a cleaner UI label.
-    Examples:
-    - 'Afghan Hound / Labrador Retriever' -> 'Afghan Hound Mix'
-    - 'Miniature Schnauzer / Miniature Poodle' -> 'Miniature Schnauzer Mix'
-    - 'Domestic Shorthair' -> 'Domestic Shorthair'
-    - 'Chihuahua Mix' -> 'Chihuahua Mix'
-    """
     if not breed_clean:
         return "Unknown"
 
@@ -218,9 +107,10 @@ def simplify_breed_for_display(breed_clean: str) -> str:
     return breed
 
 
-def build_friendly_breed_options(breed_df: pd.DataFrame, animal_type: str) -> list[str]:
-    raw_breeds = get_animal_options(breed_df, animal_type, "breed_clean")
-    friendly = sorted({simplify_breed_for_display(b) for b in raw_breeds if b})
+def build_friendly_breed_options(breeds: list[str]) -> list[str]:
+    friendly = sorted(
+        {simplify_breed_for_display(b) for b in breeds if str(b).strip()}
+    )
     return friendly
 
 
@@ -312,10 +202,7 @@ def map_breed_to_group(selected_breed: str, animal_type: str) -> str:
     ):
         return "Terrier (non-bully)"
 
-    if (
-        "toy poodle" in breed
-        or "poodle toy" in breed
-    ):
+    if "toy poodle" in breed or "poodle toy" in breed:
         return "Toy Breed"
 
     if (
@@ -349,8 +236,7 @@ def default_breed_index(breed_options: list[str], animal_type: str) -> int:
         preferred = [
             "Labrador Retriever",
             "German Shepherd",
-            "Chihuahua",
-            "Pomeranian",
+            "Chihuahua Mix",
             "Pit Bull Mix",
         ]
     else:
@@ -375,14 +261,18 @@ st.write(
     "will be adopted within a selected number of days."
 )
 
-breed_df, color_df, intake_type_df, intake_condition_df = load_dropdown_data()
+dropdown_data = load_dropdown_data()
 
-animal_type = st.selectbox("Animal Type", ["Dog", "Cat"])
+animal_types = dropdown_data.get("animal_types", ["Dog", "Cat"])
+breeds_by_type = dropdown_data.get("breeds", {})
+colors_by_type = dropdown_data.get("colors", {})
+intake_type_options = dropdown_data.get("intake_types", [])
+intake_condition_options = dropdown_data.get("intake_conditions", [])
 
-breed_options = build_friendly_breed_options(breed_df, animal_type)
-color_options = get_animal_options(color_df, animal_type, "color_primary")
-intake_type_options = get_single_column_options(intake_type_df, "intake_type")
-intake_condition_options = get_single_column_options(intake_condition_df, "intake_condition")
+animal_type = st.selectbox("Animal Type", animal_types)
+
+breed_options = build_friendly_breed_options(breeds_by_type.get(animal_type, []))
+color_options = colors_by_type.get(animal_type, [])
 
 if not breed_options:
     breed_options = ["Unknown"]
@@ -476,7 +366,7 @@ if st.button("Predict Adoption"):
     }
 
     try:
-        response = requests.post(API_URL, json=payload, timeout=30)
+        response = requests.post(PREDICTION_API_URL, json=payload, timeout=30)
         response.raise_for_status()
         result = response.json()
 
