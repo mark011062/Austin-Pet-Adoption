@@ -87,3 +87,37 @@ def avg_stay_by_animal():
         rows = conn.execute(query).mappings().all()
 
     return {"data": [dict(row) for row in rows]}
+
+@router.get("/dropdowns")
+def get_dropdowns():
+    return {
+        "animal_types": ["Dog", "Cat"],
+        "breeds": {
+            "Dog": [
+                "Labrador Retriever",
+                "German Shepherd",
+                "Pit Bull Mix",
+                "Chihuahua Mix",
+            ],
+            "Cat": [
+                "Domestic Shorthair",
+                "Domestic Longhair",
+                "Siamese",
+            ],
+        },
+        "colors": {
+            "Dog": ["Black", "Brown", "White", "Tan"],
+            "Cat": ["Black", "Gray", "White", "Orange"],
+        },
+        "intake_types": [
+            "Stray",
+            "Owner Surrender",
+            "Public Assist",
+        ],
+        "intake_conditions": [
+            "Normal",
+            "Injured",
+            "Sick",
+            "Aged",
+        ],
+    }
