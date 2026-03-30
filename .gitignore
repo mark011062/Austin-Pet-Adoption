@@ -15,12 +15,12 @@ env/
 .ipynb_checkpoints/
 
 # Data files (often large)
-
-data/
+data/*
+!data/dropdown_options.json
 
 # Model artifacts
 
-models/
+#models/
 
 # Logs
 
