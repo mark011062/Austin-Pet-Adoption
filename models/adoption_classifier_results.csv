@@ -1,0 +1,5 @@
+target,window_days,accuracy,precision,recall,f1_score,roc_auc,train_rows,test_rows,model_path
+target_adopted_within_7_days,7,0.7572,0.731,0.6952,0.7127,0.8355,26604,6652,C:\Users\marky\OneDrive\Desktop\Portfolio_Projects\Austin-Pet-Adoption\models\adoption_7day_classifier.joblib
+target_adopted_within_14_days,14,0.7656,0.7847,0.8158,0.7999,0.8467,26604,6652,C:\Users\marky\OneDrive\Desktop\Portfolio_Projects\Austin-Pet-Adoption\models\adoption_14day_classifier.joblib
+target_adopted_within_30_days,30,0.8133,0.8192,0.9476,0.8787,0.8626,26604,6652,C:\Users\marky\OneDrive\Desktop\Portfolio_Projects\Austin-Pet-Adoption\models\adoption_30day_classifier.joblib
+target_adopted_within_60_days,60,0.8824,0.8875,0.9901,0.936,0.8244,26604,6652,C:\Users\marky\OneDrive\Desktop\Portfolio_Projects\Austin-Pet-Adoption\models\adoption_60day_classifier.joblib
