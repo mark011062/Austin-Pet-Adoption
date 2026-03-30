@@ -3,9 +3,11 @@ numpy
 sqlalchemy
 psycopg2-binary
 python-dotenv
-
+uvicorn
 scikit-learn
 joblib
+sqlalchemy
+psycopg2-binary
 
 fastapi
 uvicorn
