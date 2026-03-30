@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, text
 
 load_dotenv()
 
-API_URL = "http://127.0.0.1:8000/predictions/adoption-within-days"
+API_URL = "https://austin-pet-adoption.onrender.com/predictions/adoption-within-days"
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "55432")
