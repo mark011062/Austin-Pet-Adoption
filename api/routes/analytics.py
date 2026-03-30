@@ -93,76 +93,154 @@ def avg_stay_by_animal():
 
 @router.get("/dropdowns")
 def get_dropdowns():
-    breed_query = text("""
-        SELECT DISTINCT animal_type, breed_clean
-        FROM ml.adoption_training_data
-        WHERE animal_type IN ('Dog', 'Cat')
-          AND breed_clean IS NOT NULL
-          AND TRIM(breed_clean) <> ''
-        ORDER BY animal_type, breed_clean;
-    """)
+    try:
+        breed_query = text("""
+            SELECT DISTINCT animal_type, breed_clean
+            FROM ml.adoption_training_data
+            WHERE animal_type IN ('Dog', 'Cat')
+              AND breed_clean IS NOT NULL
+              AND TRIM(breed_clean) <> ''
+            ORDER BY animal_type, breed_clean;
+        """)
 
-    color_query = text("""
-        SELECT DISTINCT animal_type, color_primary
-        FROM ml.adoption_training_data
-        WHERE animal_type IN ('Dog', 'Cat')
-          AND color_primary IS NOT NULL
-          AND TRIM(color_primary) <> ''
-        ORDER BY animal_type, color_primary;
-    """)
+        color_query = text("""
+            SELECT DISTINCT animal_type, color_primary
+            FROM ml.adoption_training_data
+            WHERE animal_type IN ('Dog', 'Cat')
+              AND color_primary IS NOT NULL
+              AND TRIM(color_primary) <> ''
+            ORDER BY animal_type, color_primary;
+        """)
 
-    intake_type_query = text("""
-        SELECT DISTINCT intake_type
-        FROM ml.adoption_training_data
-        WHERE intake_type IS NOT NULL
-          AND TRIM(intake_type) <> ''
-        ORDER BY intake_type;
-    """)
+        intake_type_query = text("""
+            SELECT DISTINCT intake_type
+            FROM ml.adoption_training_data
+            WHERE intake_type IS NOT NULL
+              AND TRIM(intake_type) <> ''
+            ORDER BY intake_type;
+        """)
 
-    intake_condition_query = text("""
-        SELECT DISTINCT intake_condition
-        FROM ml.adoption_training_data
-        WHERE intake_condition IS NOT NULL
-          AND TRIM(intake_condition) <> ''
-        ORDER BY intake_condition;
-    """)
+        intake_condition_query = text("""
+            SELECT DISTINCT intake_condition
+            FROM ml.adoption_training_data
+            WHERE intake_condition IS NOT NULL
+              AND TRIM(intake_condition) <> ''
+            ORDER BY intake_condition;
+        """)
 
-    with engine.begin() as conn:
-        breed_rows = conn.execute(breed_query).mappings().all()
-        color_rows = conn.execute(color_query).mappings().all()
-        intake_type_rows = conn.execute(intake_type_query).mappings().all()
-        intake_condition_rows = conn.execute(intake_condition_query).mappings().all()
+        with engine.begin() as conn:
+            breed_rows = conn.execute(breed_query).mappings().all()
+            color_rows = conn.execute(color_query).mappings().all()
+            intake_type_rows = conn.execute(intake_type_query).mappings().all()
+            intake_condition_rows = conn.execute(intake_condition_query).mappings().all()
 
-    breeds = {"Dog": [], "Cat": []}
-    for row in breed_rows:
-        animal_type = row["animal_type"]
-        breed_clean = row["breed_clean"]
-        if animal_type in breeds and breed_clean:
-            breeds[animal_type].append(breed_clean)
+        breeds = {"Dog": [], "Cat": []}
+        for row in breed_rows:
+            animal_type = row["animal_type"]
+            breed_clean = row["breed_clean"]
+            if animal_type in breeds and breed_clean:
+                breeds[animal_type].append(breed_clean)
 
-    colors = {"Dog": [], "Cat": []}
-    for row in color_rows:
-        animal_type = row["animal_type"]
-        color_primary = row["color_primary"]
-        if animal_type in colors and color_primary:
-            colors[animal_type].append(color_primary)
+        colors = {"Dog": [], "Cat": []}
+        for row in color_rows:
+            animal_type = row["animal_type"]
+            color_primary = row["color_primary"]
+            if animal_type in colors and color_primary:
+                colors[animal_type].append(color_primary)
 
-    intake_types = [
-        row["intake_type"]
-        for row in intake_type_rows
-        if row["intake_type"]
-    ]
+        intake_types = [
+            row["intake_type"]
+            for row in intake_type_rows
+            if row["intake_type"]
+        ]
 
-    intake_conditions = [
-        row["intake_condition"]
-        for row in intake_condition_rows
-        if row["intake_condition"]
-    ]
+        intake_conditions = [
+            row["intake_condition"]
+            for row in intake_condition_rows
+            if row["intake_condition"]
+        ]
 
-    return {
-        "animal_types": ["Dog", "Cat"],
-        "breeds": breeds,
-        "colors": colors,
-        "intake_types": intake_types,
-        "intake_conditions": intake_conditions,
-    }
+        return {
+            "animal_types": ["Dog", "Cat"],
+            "breeds": breeds,
+            "colors": colors,
+            "intake_types": intake_types,
+            "intake_conditions": intake_conditions,
+        }
+
+    except Exception:
+        return {
+            "animal_types": ["Dog", "Cat"],
+            "breeds": {
+                "Dog": [
+                    "Labrador Retriever",
+                    "German Shepherd",
+                    "Pit Bull Mix",
+                    "Chihuahua Mix",
+                    "Boxer Mix",
+                    "Australian Cattle Dog Mix",
+                    "Beagle Mix",
+                    "Dachshund Mix",
+                    "Siberian Husky Mix",
+                    "Yorkshire Terrier Mix",
+                    "Miniature Poodle Mix",
+                    "Rottweiler Mix",
+                    "Border Collie Mix",
+                    "Catahoula Mix",
+                    "American Bulldog Mix",
+                ],
+                "Cat": [
+                    "Domestic Shorthair",
+                    "Domestic Medium Hair",
+                    "Domestic Longhair",
+                    "Siamese Mix",
+                    "Tabby Mix",
+                    "American Shorthair Mix",
+                    "Maine Coon Mix",
+                    "Cat Mix",
+                ],
+            },
+            "colors": {
+                "Dog": [
+                    "Black",
+                    "Brown",
+                    "White",
+                    "Tan",
+                    "Gray",
+                    "Blue",
+                    "Cream",
+                    "Tricolor",
+                    "Black/White",
+                    "Brown/White",
+                ],
+                "Cat": [
+                    "Black",
+                    "Gray",
+                    "White",
+                    "Orange",
+                    "Brown",
+                    "Cream",
+                    "Calico",
+                    "Tortoiseshell",
+                    "Black/White",
+                    "Orange/White",
+                ],
+            },
+            "intake_types": [
+                "Stray",
+                "Owner Surrender",
+                "Public Assist",
+                "Wildlife",
+                "Euthanasia Request",
+                "Abandoned",
+            ],
+            "intake_conditions": [
+                "Normal",
+                "Injured",
+                "Sick",
+                "Aged",
+                "Nursing",
+                "Neonatal",
+                "Other",
+            ],
+        }
